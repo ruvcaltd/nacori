@@ -1,0 +1,64 @@
+import { Component, ViewChild } from '@angular/core';
+import { DxDataGridComponent } from 'devextreme-angular';
+import { Workbook } from 'exceljs';
+import { saveAs } from 'file-saver';
+
+@Component({
+  selector: 'app-grid',
+  template: `
+    <dx-data-grid
+      #dataGrid
+      [dataSource]="data"
+      [showBorders]="true"
+      (onExporting)="exportToExcel($event)"
+    >
+      <dxi-column dataField="id" caption="ID"></dxi-column>
+      <dxi-column dataField="name" caption="Name"></dxi-column>
+      <dxi-column dataField="website" caption="Website" [cellTemplate]="'linkTemplate'"></dxi-column>
+
+      <ng-template #linkTemplate let-data>
+        <a [href]="data.value" target="_blank">{{ data.value }}</a>
+      </ng-template>
+
+      <dxo-export [enabled]="true" [allowExportSelectedData]="false"></dxo-export>
+    </dx-data-grid>
+  `,
+})
+export class GridComponent {
+  @ViewChild(DxDataGridComponent, { static: false }) dataGrid!: DxDataGridComponent;
+
+  data = [
+    { id: 1, name: 'Company A', website: 'https://company-a.com' },
+    { id: 2, name: 'Company B', website: 'https://company-b.com' },
+  ];
+
+  exportToExcel(e: any) {
+    const workbook = new Workbook();
+    const worksheet = workbook.addWorksheet('Sheet1');
+
+    e.component.beginUpdate();
+    e.component.exportToExcel(false).then((cellRange: any) => {
+      const sheet = workbook.getWorksheet('Sheet1');
+      const rows = sheet.getRows(1, cellRange.to.row);
+
+      if (rows) {
+        rows.forEach((row, rowIndex) => {
+          const data = this.data[rowIndex];
+
+          if (data?.website) {
+            const cell = row.getCell(3); // Assuming website column is the 3rd column
+            cell.value = { text: data.website, hyperlink: data.website };
+            cell.font = { color: { argb: 'FF0000FF' }, underline: true }; // Blue hyperlink style
+          }
+        });
+      }
+    }).then(() => {
+      workbook.xlsx.writeBuffer().then((buffer) => {
+        saveAs(new Blob([buffer], { type: 'application/octet-stream' }), 'Export.xlsx');
+      });
+    });
+
+    e.component.endUpdate();
+    e.cancel = true; // Prevents default export behavior
+  }
+}
